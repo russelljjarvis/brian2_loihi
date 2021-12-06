@@ -16,7 +16,7 @@ class LoihiNeuronGroup(NeuronGroup):
         Initializes the LoihiNeuronGroup and the NeuronGroup
     """
 
-    def __init__(self, N, refractory=1, threshold_v_mant=100, decay_v=0, decay_I=4096, name='loihi_neurongroup*'):
+    def __init__(self, N, refractory=1, threshold_v_mant=100, decay_v=0, decay_I=4096, name='loihi_neurongroup*', eqn_str=''):
         """ Initializes the LoihiStateMonitor and the StateMonitor
 
         The init method checks if the given parameters are valid. Afterwards the
@@ -39,6 +39,8 @@ class LoihiNeuronGroup(NeuronGroup):
             The current decay (note that tau_I = 4096/decay_I)
         name : str, optional
             A unique name for the group, otherwise use ``loihi_neurongroup_0``, etc.
+        eqn_str : str, optional
+            A str to be added to the neuron model equations, e.g. to define additional variables
         """
 
         # Check if tau values are in a range of 0...4096 and integer
@@ -64,8 +66,8 @@ class LoihiNeuronGroup(NeuronGroup):
             **p,
             'decay_v': decay_v,
             'decay_I': decay_I,
-            'tau_v': 2**12/decay_v,
-            'tau_I': 2**12/decay_I,
+            'tau_v': 2**12/decay_v if decay_v != 0 else 'inf',
+            'tau_I': 2**12/decay_I if decay_I != 0 else 'inf',
             'refractory': refractory,
             'threshold_v_mant': threshold_v_mant,
             'reset_v': 0
@@ -73,12 +75,15 @@ class LoihiNeuronGroup(NeuronGroup):
 
         # Neuron model
         equations_LIF = '''
-            rnd_v = sign(v)*ceil(abs(v*{1_tau_v})) : 1
-            rnd_I = sign(I)*ceil(abs(I*{1_tau_I})) : 1
+            rnd_v = int(sign(v)*ceil(abs(v*{1_tau_v}))) : 1
+            rnd_I = int(sign(I)*ceil(abs(I*{1_tau_I}))) : 1
             dv/dt = -rnd_v/ms + I/ms: 1 (unless refractory)
             dI/dt = -rnd_I/ms: 1
         '''.format(**p)
 
+        # Add equation string
+        equations_LIF += eqn_str
+        
         # Create Brian neuron group
 
         super().__init__(
@@ -98,7 +103,9 @@ class LoihiNeuronGroup(NeuronGroup):
         """Creates a user friendly overview over all parameters
 
         This function makes it easy to get a transparent overview over all neuron group parameters.
+        Call: print(LoihiNeuronGroup.__str__())
         """
+
         print_string = 'Parameters of the neuron group:\n\n'
         for key, value in self.loihi_parameters.items():
             print_string += '{:18} {:}\n'.format(key, value)
